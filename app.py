@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, jsonify
+from flask import Flask, redirect, request
 import requests
 import os
 
@@ -16,33 +16,58 @@ def home():
         <title>Carolina State Sheriff's Office</title>
         <style>
             body {
-                background: #121212;
-                color: white;
-                font-family: Arial, sans-serif;
-                text-align: center;
+                background: url('https://raw.githubusercontent.com/dillonwade04/assets/main/cssobanner.gif') no-repeat center center fixed;
+                background-size: cover;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 margin: 0;
                 padding: 0;
+                color: white;
             }
-            .container {
+            .overlay {
+                background: rgba(0, 0, 0, 0.6);
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+            }
+            .content {
+                position: relative;
+                z-index: 2;
+                height: 100vh;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                height: 100vh;
+                text-align: center;
             }
-            img {
-                width: 150px;
+            .card {
+                background: rgba(18, 18, 18, 0.8);
+                border-radius: 12px;
+                padding: 40px;
+                max-width: 400px;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
+            .card img.logo {
+                width: 120px;
                 margin-bottom: 20px;
+            }
+            .discord-logo {
+                width: 100px;
+                margin: 15px auto;
             }
             .login-btn {
                 background-color: #5865F2;
+                border: none;
                 color: white;
                 padding: 12px 25px;
                 border-radius: 8px;
-                font-size: 16px;
-                text-decoration: none;
+                font-size: 18px;
                 font-weight: bold;
-                transition: background 0.2s;
+                text-decoration: none;
+                display: inline-block;
+                transition: background 0.3s;
+                margin-top: 20px;
             }
             .login-btn:hover {
                 background-color: #4752C4;
@@ -50,11 +75,15 @@ def home():
         </style>
     </head>
     <body>
-        <div class="container">
-            <img src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Logo">
-            <h1>Carolina State Sheriff's Office</h1>
-            <p>Welcome to the CSSO Portal. Please log in with Discord to continue.</p>
-            <a class="login-btn" href="/login">Login with Discord</a>
+        <div class="overlay"></div>
+        <div class="content">
+            <div class="card">
+                <img class="logo" src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+                <h1>Carolina State Sheriff's Office</h1>
+                <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
+                <img class="discord-logo" src="https://raw.githubusercontent.com/dillonwade04/assets/main/discord.png" alt="Discord">
+                <a class="login-btn" href="/login">Login with Discord</a>
+            </div>
         </div>
     </body>
     </html>
@@ -78,7 +107,6 @@ def callback():
         "redirect_uri": REDIRECT_URI,
         "scope": "identify guilds"
     }
-
     headers = {
         "Content-Type": "application/x-www-form-urlencoded"
     }
@@ -93,7 +121,6 @@ def callback():
     }
     guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-    # Show guilds in a clean format
     guild_list = "<br>".join([g['name'] for g in guilds])
     return f"<h2>Servers you are in:</h2><p>{guild_list}</p>"
 
