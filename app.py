@@ -10,7 +10,55 @@ REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/cal
 
 @app.route("/")
 def home():
-    return f"<a href='/login'>Login with Discord</a>"
+    return """
+    <html>
+    <head>
+        <title>Carolina State Sheriff's Office</title>
+        <style>
+            body {
+                background: #121212;
+                color: white;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin: 0;
+                padding: 0;
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+            }
+            img {
+                width: 150px;
+                margin-bottom: 20px;
+            }
+            .login-btn {
+                background-color: #5865F2;
+                color: white;
+                padding: 12px 25px;
+                border-radius: 8px;
+                font-size: 16px;
+                text-decoration: none;
+                font-weight: bold;
+                transition: background 0.2s;
+            }
+            .login-btn:hover {
+                background-color: #4752C4;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <img src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+            <h1>Carolina State Sheriff's Office</h1>
+            <p>Welcome to the CSSO Portal. Please log in with Discord to continue.</p>
+            <a class="login-btn" href="/login">Login with Discord</a>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.route("/login")
 def login():
@@ -39,14 +87,15 @@ def callback():
     r.raise_for_status()
     credentials = r.json()
 
-    # Use the token to get user guilds
     access_token = credentials.get("access_token")
     headers = {
         "Authorization": f"Bearer {access_token}"
     }
     guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-    return jsonify(guilds)
+    # Show guilds in a clean format
+    guild_list = "<br>".join([g['name'] for g in guilds])
+    return f"<h2>Servers you are in:</h2><p>{guild_list}</p>"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
