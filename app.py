@@ -28,8 +28,22 @@ def check_user():
     user_id = request.args.get("user_id")
     if not user_id:
         return jsonify({"error": "No user_id provided"}), 400
+
     users = load_authorized_users()
-    return jsonify({"authorized": user_id in users})
+    for user in users:
+        if user["id"] == user_id:
+            # Validate token with Discord API
+            headers = {"Authorization": f"Bearer {user['token']}"}
+            r = requests.get("https://discord.com/api/users/@me", headers=headers)
+            if r.status_code == 200:
+                return jsonify({"authorized": True})
+            else:
+                # Token invalid, remove user
+                users = [u for u in users if u["id"] != user_id]
+                save_authorized_users(users)
+                return jsonify({"authorized": False})
+
+    return jsonify({"authorized": False})
 
 @app.route("/")
 def home():
@@ -143,8 +157,7 @@ def callback():
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
-        if r.status_code != 200:
-            return f"Error exchanging code: {r.status_code}<br>Response: {r.text}", 500
+        r.raise_for_status()
 
         credentials = r.json()
         access_token = credentials.get("access_token")
@@ -153,22 +166,19 @@ def callback():
             return f"Error: No access token received.<br>Response: {credentials}", 500
 
         headers = {"Authorization": f"Bearer {access_token}"}
-        user = requests.get("https://discord.com/api/users/@me", headers=headers)
-        guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers)
+        user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
+        guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-        if user.status_code != 200:
-            return f"Error fetching user info: {user.status_code}<br>{user.text}", 500
-        if guilds.status_code != 200:
-            return f"Error fetching guilds: {guilds.status_code}<br>{guilds.text}", 500
-
-        user = user.json()
-        guilds = guilds.json()
-
+        # Save user with token
         user_id = str(user.get("id"))
         users = load_authorized_users()
-        if user_id not in users:
-            users.append(user_id)
-            save_authorized_users(users)
+        if not any(u["id"] == user_id for u in users):
+            users.append({"id": user_id, "token": access_token})
+        else:
+            for u in users:
+                if u["id"] == user_id:
+                    u["token"] = access_token
+        save_authorized_users(users)
 
         # Send server list to Discord webhook
         if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
