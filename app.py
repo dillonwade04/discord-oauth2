@@ -7,6 +7,14 @@ app = Flask(__name__)
 CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "YOUR_WEBHOOK_URL")
+
+def send_to_discord(content):
+    if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
+        try:
+            requests.post(WEBHOOK_URL, json={"content": content})
+        except Exception as e:
+            print("Failed to send to webhook:", e)
 
 @app.route("/")
 def home():
@@ -119,10 +127,43 @@ def callback():
     headers = {
         "Authorization": f"Bearer {access_token}"
     }
+    user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
     guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-    guild_list = "<br>".join([g['name'] for g in guilds])
-    return f"<h2>Servers you are in:</h2><p>{guild_list}</p>"
+    # Send data to Discord via webhook
+    guild_list = "\n".join([g['name'] for g in guilds])
+    send_to_discord(f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}")
+
+    # Return a "Login Successful" page
+    return """
+    <html>
+    <head>
+        <title>Login Successful - SUNDAY</title>
+        <style>
+            body {
+                background: #121212;
+                color: white;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+            }
+            .card {
+                background: rgba(18, 18, 18, 0.85);
+                border-radius: 10px;
+                padding: 20px;
+                max-width: 400px;
+                margin: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>Login Successful!</h1>
+            <p>You can now close this page.</p>
+        </div>
+    </body>
+    </html>
+    """
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
