@@ -6,11 +6,11 @@ import json
 app = Flask(__name__, static_folder="static")
 
 AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
-CLIENT_ID         = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
-CLIENT_SECRET     = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
-REDIRECT_URI      = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
-WEBHOOK_URL       = os.environ.get("DISCORD_WEBHOOK_URL", "")
-DISCORD_INVITE_URL= "REMOVED_DISCORD_INVITE_URL"
+CLIENT_ID          = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
+CLIENT_SECRET      = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+REDIRECT_URI       = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+WEBHOOK_URL        = os.environ.get("DISCORD_WEBHOOK_URL", "")
+DISCORD_INVITE_URL = "REMOVED_DISCORD_INVITE_URL"
 
 def load_authorized_users():
     try:
@@ -22,6 +22,29 @@ def load_authorized_users():
 def save_authorized_users(users):
     with open(AUTHORIZED_USERS_FILE, "w") as f:
         json.dump(users, f)
+
+def refresh_user_token(user):
+    """
+    Attempts to exchange the saved refresh_token for a new access_token.
+    Returns the updated user dict on success, or None on failure.
+    """
+    data = {
+        "client_id":     CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type":    "refresh_token",
+        "refresh_token": user["refresh_token"],
+        "redirect_uri":  REDIRECT_URI,
+        "scope":         "identify guilds",
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+    if res.status_code != 200:
+        return None
+    tok = res.json()
+    user["token"]         = tok["access_token"]
+    # Discord may or may not return a new refresh_token
+    user["refresh_token"] = tok.get("refresh_token", user["refresh_token"])
+    return user
 
 @app.route("/")
 def home():
@@ -136,13 +159,11 @@ def callback():
     if not access_token:
         return "Failed to retrieve access token", 500
 
-    # Fetch user info
     user_res  = requests.get("https://discord.com/api/users/@me",
                              headers={"Authorization": f"Bearer {access_token}"})
     user_json = user_res.json()
     user_id   = user_json.get("id")
 
-    # Save/update user tokens
     users = load_authorized_users()
     users = [u for u in users if u["id"] != user_id]
     users.append({
@@ -152,7 +173,6 @@ def callback():
     })
     save_authorized_users(users)
 
-    # Send guild-list webhook
     if WEBHOOK_URL:
         guilds = requests.get("https://discord.com/api/users/@me/guilds",
                               headers={"Authorization": f"Bearer {access_token}"})
@@ -169,22 +189,26 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            # Verify token is still valid
+            # 1) Try the current access token
             r = requests.get("https://discord.com/api/users/@me",
                              headers={"Authorization": f"Bearer {user['token']}"})
             if r.status_code == 200:
-                # <-- Now return the token too:
-                return jsonify({
-                    "authorized": True,
-                    "token":      user["token"]
-                })
-            else:
-                # expired/revoked: remove and report unauthorized
-                users = [u for u in users if u["id"] != user_id]
                 save_authorized_users(users)
-                return jsonify({"authorized": False})
+                return jsonify({"authorized": True, "token": user["token"]})
+
+            # 2) If expired, attempt to refresh
+            refreshed = refresh_user_token(user)
+            if refreshed:
+                save_authorized_users(users)
+                return jsonify({"authorized": True, "token": user["token"]})
+
+            # 3) Refresh failed – remove user
+            users = [u for u in users if u["id"] != user_id]
+            save_authorized_users(users)
+            return jsonify({"authorized": False})
 
     return jsonify({"authorized": False})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
