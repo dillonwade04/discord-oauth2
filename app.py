@@ -1,8 +1,8 @@
-from flask import Flask, redirect, request
+from flask import Flask, redirect, request, send_from_directory
 import requests
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
 
 CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
@@ -16,6 +16,10 @@ def send_to_discord(content):
         except Exception as e:
             print("Failed to send to webhook:", e)
 
+@app.route("/static/<path:filename>")
+def static_files(filename):
+    return send_from_directory(app.static_folder, filename)
+
 @app.route("/")
 def home():
     return """
@@ -24,7 +28,7 @@ def home():
         <title>Carolina State Sheriff's Office</title>
         <style>
             body {
-                background: url('https://raw.githubusercontent.com/dillonwade04/assets/main/cssobanner.gif') no-repeat center center fixed;
+                background: url('/static/cssobanner.gif') no-repeat center center fixed;
                 background-size: cover;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 margin: 0;
@@ -86,10 +90,10 @@ def home():
         <div class="overlay"></div>
         <div class="content">
             <div class="card">
-                <img class="logo" src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+                <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
                 <h1>Carolina State Sheriff's Office</h1>
                 <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
-                <img class="discord-logo" src="https://raw.githubusercontent.com/dillonwade04/assets/main/discord.png" alt="Discord">
+                <img class="discord-logo" src="/static/discord.png" alt="Discord">
                 <a class="login-btn" href="/login">Login with Discord</a>
             </div>
         </div>
@@ -171,7 +175,7 @@ def callback():
     </head>
     <body>
         <div class="card">
-            <img class="badge" src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Badge">
+            <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
             <h1>Login Successful!</h1>
             <p>You can now close this page.</p>
         </div>
