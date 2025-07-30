@@ -1,105 +1,58 @@
-from flask import Flask, redirect, request, send_from_directory
+from flask import Flask, redirect, request, jsonify, send_from_directory
 import requests
 import os
+import json
 
 app = Flask(__name__, static_folder="static")
 
+AUTHORIZED_USERS_FILE = "authorized_users.json"
 CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "YOUR_WEBHOOK_URL")
 
-def send_to_discord(content):
-    if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
-        try:
-            requests.post(WEBHOOK_URL, json={"content": content})
-        except Exception as e:
-            print("Failed to send to webhook:", e)
+def load_authorized_users():
+    try:
+        with open(AUTHORIZED_USERS_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
 
-@app.route("/static/<path:filename>")
-def static_files(filename):
-    return send_from_directory(app.static_folder, filename)
+def save_authorized_users(users):
+    with open(AUTHORIZED_USERS_FILE, "w") as f:
+        json.dump(users, f)
+
+@app.route("/authorize", methods=["POST"])
+def authorize():
+    data = request.json
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "No user_id provided"}), 400
+
+    users = load_authorized_users()
+    if user_id not in users:
+        users.append(user_id)
+        save_authorized_users(users)
+
+    return jsonify({"status": "ok", "user_id": user_id})
+
+@app.route("/check", methods=["GET"])
+def check_user():
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return jsonify({"error": "No user_id provided"}), 400
+
+    users = load_authorized_users()
+    return jsonify({"authorized": user_id in users})
 
 @app.route("/")
 def home():
     return """
     <html>
-    <head>
-        <title>Carolina State Sheriff's Office</title>
-        <style>
-            body {
-                background: url('/static/cssobanner.gif') no-repeat center center fixed;
-                background-size: cover;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                margin: 0;
-                padding: 0;
-                color: white;
-            }
-            .overlay {
-                background: rgba(0, 0, 0, 0.6);
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-            }
-            .content {
-                position: relative;
-                z-index: 2;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-            }
-            .card {
-                background: rgba(18, 18, 18, 0.85);
-                border-radius: 12px;
-                padding: 40px 30px;
-                max-width: 420px;
-                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            }
-            .card img.logo {
-                width: 100px;
-                margin-bottom: 15px;
-            }
-            .discord-logo {
-                width: 60px;
-                margin: 20px auto 10px auto;
-                display: block;
-            }
-            .login-btn {
-                background-color: #5865F2;
-                border: none;
-                color: white;
-                padding: 10px 20px;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: bold;
-                text-decoration: none;
-                transition: all 0.3s ease-in-out;
-                display: inline-block;
-                margin-top: 10px;
-                box-shadow: 0 0 10px rgba(88, 101, 242, 0.6), 0 0 20px rgba(88, 101, 242, 0.4);
-            }
-            .login-btn:hover {
-                background-color: #4752C4;
-                box-shadow: 0 0 15px rgba(88, 101, 242, 0.9), 0 0 30px rgba(88, 101, 242, 0.6);
-            }
-        </style>
-    </head>
+    <head><title>Carolina State Sheriff's Office</title></head>
     <body>
-        <div class="overlay"></div>
-        <div class="content">
-            <div class="card">
-                <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
-                <h2>Carolina State Sheriff's Office</h2>
-                <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
-                <img class="discord-logo" src="/static/discord.png" alt="Discord">
-                <a class="login-btn" href="/login">Login with Discord</a>
-            </div>
-        </div>
+    <h2>Carolina State Sheriff's Office Portal</h2>
+    <a href='/login'>Login with Discord</a>
     </body>
     </html>
     """
@@ -122,69 +75,23 @@ def callback():
         "redirect_uri": REDIRECT_URI,
         "scope": "identify guilds"
     }
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
     r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
     r.raise_for_status()
     credentials = r.json()
 
     access_token = credentials.get("access_token")
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
+    headers = {"Authorization": f"Bearer {access_token}"}
     user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
-    guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-    guild_list = "\n".join([g['name'] for g in guilds])
-    send_to_discord(f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}")
+    # Store user_id
+    user_id = str(user.get("id"))
+    users = load_authorized_users()
+    if user_id not in users:
+        users.append(user_id)
+        save_authorized_users(users)
 
-    return """
-    <html>
-    <head>
-        <title>Login Successful - SUNDAY</title>
-        <style>
-            body {
-                background: #121212;
-                color: white;
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 50px;
-            }
-            .card {
-                background: rgba(18, 18, 18, 0.85);
-                border-radius: 10px;
-                padding: 20px;
-                max-width: 400px;
-                margin: auto;
-                animation: fadeIn 1s ease-in-out;
-            }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            .badge {
-                width: 100px;
-                animation: pulse 2s infinite;
-                margin-bottom: 20px;
-            }
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.1); }
-                100% { transform: scale(1); }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
-            <h1>Login Successful!</h1>
-            <p>You can now close this page.</p>
-        </div>
-    </body>
-    </html>
-    """
+    return f"<h1>Login Successful!</h1><p>You can now close this page.</p>"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
