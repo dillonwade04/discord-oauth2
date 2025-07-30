@@ -24,10 +24,6 @@ def save_authorized_users(users):
         json.dump(users, f)
 
 def refresh_user_token(user):
-    """
-    Attempts to exchange the saved refresh_token for a new access_token.
-    Returns the updated user dict on success, or None on failure.
-    """
     data = {
         "client_id":     CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -42,7 +38,6 @@ def refresh_user_token(user):
         return None
     tok = res.json()
     user["token"]         = tok["access_token"]
-    # Discord may or may not return a new refresh_token
     user["refresh_token"] = tok.get("refresh_token", user["refresh_token"])
     return user
 
@@ -51,76 +46,107 @@ def home():
     return """
     <html>
     <head>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-        <title>Carolina State Sheriff's Office</title>
-        <style>
-            body {
-                background: url('/static/cssobanner.gif') no-repeat center center fixed;
-                background-size: cover;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                margin: 0;
-                padding: 0;
-                color: white;
-            }
-            .overlay {
-                background: rgba(0, 0, 0, 0.6);
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-            }
-            .content {
-                position: relative;
-                z-index: 2;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-                animation: fadeIn 1s ease-in-out;
-            }
-            .card {
-                background: rgba(0, 0, 0, 0.75);
-                padding: 2rem;
-                border-radius: 8px;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            }
-            .logo {
-                width: 120px;
-                margin-bottom: 1rem;
-            }
-            .login-btn {
-                display: inline-block;
-                margin-top: 1rem;
-                padding: 0.75rem 1.5rem;
-                background: #7289da;
-                color: white;
-                text-decoration: none;
-                border-radius: 4px;
-                transition: background 0.2s;
-            }
-            .login-btn:hover {
-                background: #5b6eae;
-            }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to   { opacity: 1; }
-            }
-        </style>
+      <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+      <title>Carolina State Sheriff's Office</title>
+      <style>
+        /* full-screen background */
+        body {
+          margin: 0;
+          padding: 0;
+          height: 100vh;
+          background: url('/static/cssobanner.gif') no-repeat center center fixed;
+          background-size: cover;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          color: #fff;
+          overflow: hidden;
+        }
+
+        /* dark overlay */
+        .overlay {
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+        }
+
+        /* centering the card */
+        .content {
+          position: relative;
+          z-index: 2;
+          height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* translucent card with blur */
+        .card {
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(10px);
+          padding: 2rem 3rem;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          text-align: center;
+          max-width: 360px;
+          width: 90%;
+        }
+
+        /* CSSO badge */
+        .logo {
+          width: 80px;
+          margin-bottom: 1rem;
+        }
+
+        h2 {
+          margin: 0.5rem 0;
+          font-size: 1.5rem;
+        }
+
+        p {
+          margin: 0.5rem 0 1rem;
+          font-size: 1rem;
+          opacity: 0.85;
+        }
+
+        /* Discord icon under the text */
+        .discord-logo {
+          display: block;
+          width: 60px;
+          margin: 1rem auto;
+          opacity: 0.8;
+        }
+
+        /* styled button with glow */
+        .login-btn {
+          display: inline-block;
+          padding: 0.75rem 2rem;
+          font-size: 1rem;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          background: linear-gradient(135deg, #7289da 0%, #99a7f2 100%);
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          text-decoration: none;
+          box-shadow: 0 0 15px rgba(114,137,218,0.7);
+          transition: box-shadow 0.3s ease, transform 0.2s ease;
+        }
+        .login-btn:hover {
+          box-shadow: 0 0 25px rgba(114,137,218,0.9);
+          transform: translateY(-2px);
+        }
+      </style>
     </head>
     <body>
-        <div class="overlay"></div>
-        <div class="content">
-            <div class="card">
-                <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
-                <h2>Carolina State Sheriff's Office</h2>
-                <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
-                <img class="discord-logo" src="/static/discord.png" alt="Discord">
-                <a class="login-btn" href="/login">Login with Discord</a>
-            </div>
+      <div class="overlay"></div>
+      <div class="content">
+        <div class="card">
+          <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+          <h2>Carolina State Sheriff's Office</h2>
+          <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
+          <img class="discord-logo" src="/static/discord.png" alt="Discord Logo">
+          <a class="login-btn" href="/login">Login with Discord</a>
         </div>
+      </div>
     </body>
     </html>
     """
@@ -189,20 +215,17 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            # 1) Try the current access token
             r = requests.get("https://discord.com/api/users/@me",
                              headers={"Authorization": f"Bearer {user['token']}"})
             if r.status_code == 200:
                 save_authorized_users(users)
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # 2) If expired, attempt to refresh
             refreshed = refresh_user_token(user)
             if refreshed:
                 save_authorized_users(users)
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # 3) Refresh failed – remove user
             users = [u for u in users if u["id"] != user_id]
             save_authorized_users(users)
             return jsonify({"authorized": False})
