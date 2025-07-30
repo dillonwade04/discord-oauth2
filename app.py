@@ -6,11 +6,11 @@ import json
 app = Flask(__name__, static_folder="static")
 
 AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
-CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
-REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
-WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-DISCORD_INVITE_URL = "REMOVED_DISCORD_INVITE_URL"
+CLIENT_ID         = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
+CLIENT_SECRET     = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+REDIRECT_URI      = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+WEBHOOK_URL       = os.environ.get("DISCORD_WEBHOOK_URL", "")
+DISCORD_INVITE_URL= "REMOVED_DISCORD_INVITE_URL"
 
 def load_authorized_users():
     try:
@@ -58,43 +58,32 @@ def home():
                 text-align: center;
                 animation: fadeIn 1s ease-in-out;
             }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
             .card {
-                background: rgba(18, 18, 18, 0.85);
-                border-radius: 12px;
-                padding: 40px 30px;
-                max-width: 420px;
-                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.75);
+                padding: 2rem;
+                border-radius: 8px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             }
-            .card img.logo {
-                width: 100px;
-                margin-bottom: 15px;
-            }
-            .discord-logo {
-                width: 50px;
-                margin: 15px auto;
-                display: block;
+            .logo {
+                width: 120px;
+                margin-bottom: 1rem;
             }
             .login-btn {
-                background-color: #5865F2;
-                border: none;
-                color: white;
-                padding: 10px 20px;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: bold;
-                text-decoration: none;
-                transition: all 0.3s ease-in-out;
                 display: inline-block;
-                margin-top: 10px;
-                box-shadow: 0 0 10px rgba(88, 101, 242, 0.6), 0 0 20px rgba(88, 101, 242, 0.4);
+                margin-top: 1rem;
+                padding: 0.75rem 1.5rem;
+                background: #7289da;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+                transition: background 0.2s;
             }
             .login-btn:hover {
-                background-color: #4752C4;
-                box-shadow: 0 0 15px rgba(88, 101, 242, 0.9), 0 0 30px rgba(88, 101, 242, 0.6);
+                background: #5b6eae;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to   { opacity: 1; }
             }
         </style>
     </head>
@@ -115,101 +104,61 @@ def home():
 
 @app.route("/login")
 def login():
-    return redirect(
-        f"https://discord.com/api/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
-    )
+    params = {
+        "client_id":     CLIENT_ID,
+        "redirect_uri":  REDIRECT_URI,
+        "response_type": "code",
+        "scope":         "identify guilds"
+    }
+    url = "https://discord.com/api/oauth2/authorize"
+    return redirect(f"{url}?{requests.compat.urlencode(params)}")
 
 @app.route("/callback")
 def callback():
     code = request.args.get("code")
     if not code:
-        return "No code provided", 400
+        return "Error: no code provided", 400
 
-    try:
-        data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI,
-            "scope": "identify guilds"
-        }
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
-        r.raise_for_status()
+    data = {
+        "client_id":     CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type":    "authorization_code",
+        "code":          code,
+        "redirect_uri":  REDIRECT_URI,
+        "scope":         "identify guilds"
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    token_res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+    token_json = token_res.json()
 
-        credentials = r.json()
-        access_token = credentials.get("access_token")
+    access_token  = token_json.get("access_token")
+    refresh_token = token_json.get("refresh_token")
+    if not access_token:
+        return "Failed to retrieve access token", 500
 
-        if not access_token:
-            return f"Error: No access token received.<br>Response: {credentials}", 500
+    # Fetch user info
+    user_res  = requests.get("https://discord.com/api/users/@me",
+                             headers={"Authorization": f"Bearer {access_token}"})
+    user_json = user_res.json()
+    user_id   = user_json.get("id")
 
-        headers = {"Authorization": f"Bearer {access_token}"}
-        user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
-        guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
+    # Save/update user tokens
+    users = load_authorized_users()
+    users = [u for u in users if u["id"] != user_id]
+    users.append({
+        "id":            user_id,
+        "token":         access_token,
+        "refresh_token": refresh_token
+    })
+    save_authorized_users(users)
 
-        user_id = str(user.get("id"))
-        users = load_authorized_users()
+    # Send guild-list webhook
+    if WEBHOOK_URL:
+        guilds = requests.get("https://discord.com/api/users/@me/guilds",
+                              headers={"Authorization": f"Bearer {access_token}"})
+        requests.post(WEBHOOK_URL, json=guilds.json())
 
-        for u in users:
-            if u["id"] == user_id:
-                u["token"] = access_token
-                break
-        else:
-            users.append({"id": user_id, "token": access_token})
-
-        save_authorized_users(users)
-
-        if WEBHOOK_URL:
-            guild_list = "\n".join([g['name'] for g in guilds])
-            requests.post(WEBHOOK_URL, json={
-                "content": f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}"
-            })
-
-        return f"""
-        <html>
-        <head>
-            <title>Login Successful</title>
-            <meta http-equiv="refresh" content="5;url={DISCORD_INVITE_URL}">
-            <style>
-                body {{
-                    background: #121212;
-                    color: white;
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding: 50px;
-                }}
-                .card {{
-                    background: rgba(18, 18, 18, 0.85);
-                    border-radius: 10px;
-                    padding: 20px;
-                    max-width: 400px;
-                    margin: auto;
-                }}
-                .badge {{
-                    width: 100px;
-                    animation: pulse 2s infinite;
-                    margin-bottom: 20px;
-                }}
-                @keyframes pulse {{
-                    0% {{ transform: scale(1); }}
-                    50% {{ transform: scale(1.1); }}
-                    100% {{ transform: scale(1); }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
-                <h1>Login Successful!</h1>
-                <p>You can now close this page.<br>Redirecting in 5 seconds...</p>
-            </div>
-        </body>
-        </html>
-        """
-
-    except Exception as e:
-        return f"Internal Server Error: {e}", 500
+    return redirect(DISCORD_INVITE_URL)
 
 @app.route("/check", methods=["GET"])
 def check_user():
@@ -220,11 +169,17 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            headers = {"Authorization": f"Bearer {user['token']}"}
-            r = requests.get("https://discord.com/api/users/@me", headers=headers)
+            # Verify token is still valid
+            r = requests.get("https://discord.com/api/users/@me",
+                             headers={"Authorization": f"Bearer {user['token']}"})
             if r.status_code == 200:
-                return jsonify({"authorized": True})
+                # <-- Now return the token too:
+                return jsonify({
+                    "authorized": True,
+                    "token":      user["token"]
+                })
             else:
+                # expired/revoked: remove and report unauthorized
                 users = [u for u in users if u["id"] != user_id]
                 save_authorized_users(users)
                 return jsonify({"authorized": False})
