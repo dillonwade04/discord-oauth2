@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, jsonify, send_from_directory
+from flask import Flask, redirect, request, jsonify
 import requests
 import os
 import json
@@ -10,6 +10,7 @@ CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "YOUR_WEBHOOK_URL")
+DISCORD_INVITE_URL = "REMOVED_DISCORD_INVITE_URL"  # Replace with your invite
 
 def load_authorized_users():
     try:
@@ -21,19 +22,6 @@ def load_authorized_users():
 def save_authorized_users(users):
     with open(AUTHORIZED_USERS_FILE, "w") as f:
         json.dump(users, f)
-
-@app.route("/authorize", methods=["POST"])
-def authorize():
-    data = request.json
-    user_id = data.get("user_id")
-    if not user_id:
-        return jsonify({"error": "No user_id provided"}), 400
-
-    users = load_authorized_users()
-    if user_id not in users:
-        users.append(user_id)
-        save_authorized_users(users)
-    return jsonify({"status": "ok", "user_id": user_id})
 
 @app.route("/check", methods=["GET"])
 def check_user():
@@ -158,50 +146,60 @@ def callback():
     access_token = credentials.get("access_token")
     headers = {"Authorization": f"Bearer {access_token}"}
     user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
+    guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
 
+    # Save user as authorized
     user_id = str(user.get("id"))
     users = load_authorized_users()
     if user_id not in users:
         users.append(user_id)
         save_authorized_users(users)
 
-    return """
+    # Send server list to Discord webhook
+    if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
+        guild_list = "\n".join([g['name'] for g in guilds])
+        requests.post(WEBHOOK_URL, json={
+            "content": f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}"
+        })
+
+    return f"""
     <html>
     <head>
         <title>Login Successful - SUNDAY</title>
+        <meta http-equiv="refresh" content="5;url={DISCORD_INVITE_URL}">
         <style>
-            body {
+            body {{
                 background: #121212;
                 color: white;
                 font-family: Arial, sans-serif;
                 text-align: center;
                 padding: 50px;
-            }
-            .card {
+            }}
+            .card {{
                 background: rgba(18, 18, 18, 0.85);
                 border-radius: 10px;
                 padding: 20px;
                 max-width: 400px;
                 margin: auto;
                 animation: fadeIn 1s ease-in-out;
-            }
-            .badge {
+            }}
+            .badge {{
                 width: 100px;
                 animation: pulse 2s infinite;
                 margin-bottom: 20px;
-            }
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.1); }
-                100% { transform: scale(1); }
-            }
+            }}
+            @keyframes pulse {{
+                0% {{ transform: scale(1); }}
+                50% {{ transform: scale(1.1); }}
+                100% {{ transform: scale(1); }}
+            }}
         </style>
     </head>
     <body>
         <div class="card">
             <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
             <h1>Login Successful!</h1>
-            <p>You can now close this page.</p>
+            <p>You can now close this page.<br>Redirecting in 5 seconds...</p>
         </div>
     </body>
     </html>
