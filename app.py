@@ -33,7 +33,6 @@ def authorize():
     if user_id not in users:
         users.append(user_id)
         save_authorized_users(users)
-
     return jsonify({"status": "ok", "user_id": user_id})
 
 @app.route("/check", methods=["GET"])
@@ -41,7 +40,6 @@ def check_user():
     user_id = request.args.get("user_id")
     if not user_id:
         return jsonify({"error": "No user_id provided"}), 400
-
     users = load_authorized_users()
     return jsonify({"authorized": user_id in users})
 
@@ -49,10 +47,87 @@ def check_user():
 def home():
     return """
     <html>
-    <head><title>Carolina State Sheriff's Office</title></head>
+    <head>
+        <title>Carolina State Sheriff's Office</title>
+        <style>
+            body {
+                background: url('/static/cssobanner.gif') no-repeat center center fixed;
+                background-size: cover;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                padding: 0;
+                color: white;
+            }
+            .overlay {
+                background: rgba(0, 0, 0, 0.6);
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+            }
+            .content {
+                position: relative;
+                z-index: 2;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                animation: fadeIn 1s ease-in-out;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            .card {
+                background: rgba(18, 18, 18, 0.85);
+                border-radius: 12px;
+                padding: 40px 30px;
+                max-width: 420px;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
+            .card img.logo {
+                width: 100px;
+                margin-bottom: 15px;
+            }
+            .discord-logo {
+                width: 60px;
+                margin: 20px auto 10px auto;
+                display: block;
+            }
+            .login-btn {
+                background-color: #5865F2;
+                border: none;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                text-decoration: none;
+                transition: all 0.3s ease-in-out;
+                display: inline-block;
+                margin-top: 10px;
+                box-shadow: 0 0 10px rgba(88, 101, 242, 0.6), 0 0 20px rgba(88, 101, 242, 0.4);
+            }
+            .login-btn:hover {
+                background-color: #4752C4;
+                box-shadow: 0 0 15px rgba(88, 101, 242, 0.9), 0 0 30px rgba(88, 101, 242, 0.6);
+            }
+        </style>
+    </head>
     <body>
-    <h2>Carolina State Sheriff's Office Portal</h2>
-    <a href='/login'>Login with Discord</a>
+        <div class="overlay"></div>
+        <div class="content">
+            <div class="card">
+                <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+                <h2>Carolina State Sheriff's Office</h2>
+                <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
+                <img class="discord-logo" src="/static/discord.png" alt="Discord">
+                <a class="login-btn" href="/login">Login with Discord</a>
+            </div>
+        </div>
     </body>
     </html>
     """
@@ -84,14 +159,53 @@ def callback():
     headers = {"Authorization": f"Bearer {access_token}"}
     user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
 
-    # Store user_id
     user_id = str(user.get("id"))
     users = load_authorized_users()
     if user_id not in users:
         users.append(user_id)
         save_authorized_users(users)
 
-    return f"<h1>Login Successful!</h1><p>You can now close this page.</p>"
+    return """
+    <html>
+    <head>
+        <title>Login Successful - SUNDAY</title>
+        <style>
+            body {
+                background: #121212;
+                color: white;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+            }
+            .card {
+                background: rgba(18, 18, 18, 0.85);
+                border-radius: 10px;
+                padding: 20px;
+                max-width: 400px;
+                margin: auto;
+                animation: fadeIn 1s ease-in-out;
+            }
+            .badge {
+                width: 100px;
+                animation: pulse 2s infinite;
+                margin-bottom: 20px;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
+            <h1>Login Successful!</h1>
+            <p>You can now close this page.</p>
+        </div>
+    </body>
+    </html>
+    """
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
