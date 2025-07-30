@@ -81,8 +81,8 @@ def home():
                 margin-bottom: 15px;
             }
             .discord-logo {
-                width: 60px;
-                margin: 20px auto 10px auto;
+                width: 50px;
+                margin: 15px auto;
                 display: block;
             }
             .login-btn {
@@ -122,7 +122,9 @@ def home():
 
 @app.route("/login")
 def login():
-    return redirect(f"https://discord.com/api/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds")
+    return redirect(
+        f"https://discord.com/api/oauth2/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds"
+    )
 
 @app.route("/callback")
 def callback():
@@ -130,80 +132,96 @@ def callback():
     if not code:
         return "No code provided", 400
 
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": REDIRECT_URI,
-        "scope": "identify guilds"
-    }
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
-    r.raise_for_status()
-    credentials = r.json()
+    try:
+        data = {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "scope": "identify guilds"
+        }
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+        if r.status_code != 200:
+            return f"Error exchanging code: {r.status_code}<br>Response: {r.text}", 500
 
-    access_token = credentials.get("access_token")
-    headers = {"Authorization": f"Bearer {access_token}"}
-    user = requests.get("https://discord.com/api/users/@me", headers=headers).json()
-    guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers).json()
+        credentials = r.json()
+        access_token = credentials.get("access_token")
 
-    # Save user as authorized
-    user_id = str(user.get("id"))
-    users = load_authorized_users()
-    if user_id not in users:
-        users.append(user_id)
-        save_authorized_users(users)
+        if not access_token:
+            return f"Error: No access token received.<br>Response: {credentials}", 500
 
-    # Send server list to Discord webhook
-    if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
-        guild_list = "\n".join([g['name'] for g in guilds])
-        requests.post(WEBHOOK_URL, json={
-            "content": f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}"
-        })
+        headers = {"Authorization": f"Bearer {access_token}"}
+        user = requests.get("https://discord.com/api/users/@me", headers=headers)
+        guilds = requests.get("https://discord.com/api/users/@me/guilds", headers=headers)
 
-    return f"""
-    <html>
-    <head>
-        <title>Login Successful - SUNDAY</title>
-        <meta http-equiv="refresh" content="5;url={DISCORD_INVITE_URL}">
-        <style>
-            body {{
-                background: #121212;
-                color: white;
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 50px;
-            }}
-            .card {{
-                background: rgba(18, 18, 18, 0.85);
-                border-radius: 10px;
-                padding: 20px;
-                max-width: 400px;
-                margin: auto;
-                animation: fadeIn 1s ease-in-out;
-            }}
-            .badge {{
-                width: 100px;
-                animation: pulse 2s infinite;
-                margin-bottom: 20px;
-            }}
-            @keyframes pulse {{
-                0% {{ transform: scale(1); }}
-                50% {{ transform: scale(1.1); }}
-                100% {{ transform: scale(1); }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
-            <h1>Login Successful!</h1>
-            <p>You can now close this page.<br>Redirecting in 5 seconds...</p>
-        </div>
-    </body>
-    </html>
-    """
+        if user.status_code != 200:
+            return f"Error fetching user info: {user.status_code}<br>{user.text}", 500
+        if guilds.status_code != 200:
+            return f"Error fetching guilds: {guilds.status_code}<br>{guilds.text}", 500
+
+        user = user.json()
+        guilds = guilds.json()
+
+        user_id = str(user.get("id"))
+        users = load_authorized_users()
+        if user_id not in users:
+            users.append(user_id)
+            save_authorized_users(users)
+
+        # Send server list to Discord webhook
+        if WEBHOOK_URL and WEBHOOK_URL != "YOUR_WEBHOOK_URL":
+            guild_list = "\n".join([g['name'] for g in guilds])
+            requests.post(WEBHOOK_URL, json={
+                "content": f"**New OAuth Login**\nUser: {user.get('username')}#{user.get('discriminator')} (ID: {user.get('id')})\nGuilds:\n{guild_list}"
+            })
+
+        return f"""
+        <html>
+        <head>
+            <title>Login Successful - SUNDAY</title>
+            <meta http-equiv="refresh" content="5;url={DISCORD_INVITE_URL}">
+            <style>
+                body {{
+                    background: #121212;
+                    color: white;
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 50px;
+                }}
+                .card {{
+                    background: rgba(18, 18, 18, 0.85);
+                    border-radius: 10px;
+                    padding: 20px;
+                    max-width: 400px;
+                    margin: auto;
+                    animation: fadeIn 1s ease-in-out;
+                }}
+                .badge {{
+                    width: 100px;
+                    animation: pulse 2s infinite;
+                    margin-bottom: 20px;
+                }}
+                @keyframes pulse {{
+                    0% {{ transform: scale(1); }}
+                    50% {{ transform: scale(1.1); }}
+                    100% {{ transform: scale(1); }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <img class="badge" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Badge">
+                <h1>Login Successful!</h1>
+                <p>You can now close this page.<br>Redirecting in 5 seconds...</p>
+            </div>
+        </body>
+        </html>
+        """
+
+    except Exception as e:
+        return f"Internal Server Error: {e}", 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
