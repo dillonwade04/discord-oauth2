@@ -5,7 +5,7 @@ import json
 
 app = Flask(__name__, static_folder="static")
 
-AUTHORIZED_USERS_FILE = "authorized_users.json"
+AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
 CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
