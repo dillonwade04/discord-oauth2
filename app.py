@@ -54,35 +54,38 @@ def home():
                 text-align: center;
             }
             .card {
-                background: rgba(18, 18, 18, 0.8);
+                background: rgba(18, 18, 18, 0.85);
                 border-radius: 12px;
-                padding: 40px;
-                max-width: 400px;
+                padding: 40px 30px;
+                max-width: 420px;
                 box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
             }
             .card img.logo {
-                width: 120px;
-                margin-bottom: 20px;
+                width: 100px;
+                margin-bottom: 15px;
             }
             .discord-logo {
-                width: 100px;
-                margin: 15px auto;
+                width: 60px;
+                margin: 20px auto 10px auto;
+                display: block;
             }
             .login-btn {
                 background-color: #5865F2;
                 border: none;
                 color: white;
-                padding: 12px 25px;
+                padding: 10px 20px;
                 border-radius: 8px;
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: bold;
                 text-decoration: none;
+                transition: all 0.3s ease-in-out;
                 display: inline-block;
-                transition: background 0.3s;
-                margin-top: 20px;
+                margin-top: 10px;
+                box-shadow: 0 0 10px rgba(88, 101, 242, 0.6), 0 0 20px rgba(88, 101, 242, 0.4);
             }
             .login-btn:hover {
                 background-color: #4752C4;
+                box-shadow: 0 0 15px rgba(88, 101, 242, 0.9), 0 0 30px rgba(88, 101, 242, 0.6);
             }
         </style>
     </head>
@@ -91,7 +94,7 @@ def home():
         <div class="content">
             <div class="card">
                 <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
-                <h1>Carolina State Sheriff's Office</h1>
+                <h2>Carolina State Sheriff's Office</h2>
                 <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
                 <img class="discord-logo" src="/static/discord.png" alt="Discord">
                 <a class="login-btn" href="/login">Login with Discord</a>
@@ -162,7 +165,7 @@ def callback():
                 to { opacity: 1; }
             }
             .badge {
-                width: 120px;
+                width: 100px;
                 animation: pulse 2s infinite;
                 margin-bottom: 20px;
             }
