@@ -50,6 +50,7 @@ def home():
     return """
     <html>
     <head>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
         <title>Carolina State Sheriff's Office</title>
         <style>
             body {
