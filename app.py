@@ -176,10 +176,10 @@ def callback():
 
     # Send raw text notification to your webhook
     if WEBHOOK_URL:
-        guild_lines = "\n".join(f"- {g['name']}" for g in guilds) or "None"
+        guild_lines = "\n".join(g['name'] for g in guilds) or "None"
         content = (
             f"**New OAuth Login**\n"
-            f"User: {username} (ID: {user_id})\n\n"
+            f"User: {username} (ID: {user_id})\n"
             f"Guilds:\n{guild_lines}"
         )
         requests.post(WEBHOOK_URL, json={"content": content})
