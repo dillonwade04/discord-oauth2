@@ -2,19 +2,18 @@ from flask import Flask, redirect, request, jsonify
 import requests
 import os
 import json
-from datetime import datetime
 
 app = Flask(__name__, static_folder="static")
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# ─── Configuration ─────────────────────────────────────────────────────────────
 AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
-CLIENT_ID            = os.environ.get("DISCORD_CLIENT_ID",      "YOUR_CLIENT_ID")
-CLIENT_SECRET        = os.environ.get("DISCORD_CLIENT_SECRET",  "YOUR_CLIENT_SECRET")
-REDIRECT_URI         = os.environ.get("DISCORD_REDIRECT_URI",   "http://localhost:5000/callback")
-WEBHOOK_URL          = os.environ.get("DISCORD_WEBHOOK_URL",    "").rstrip("/")
+CLIENT_ID            = os.environ.get("DISCORD_CLIENT_ID",     "YOUR_CLIENT_ID")
+CLIENT_SECRET        = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+REDIRECT_URI         = os.environ.get("DISCORD_REDIRECT_URI",  "http://localhost:5000/callback")
+WEBHOOK_URL          = os.environ.get("DISCORD_WEBHOOK_URL",   "")
 DISCORD_INVITE_URL   = "REMOVED_DISCORD_INVITE_URL"
 
-# ─── Storage Helpers ───────────────────────────────────────────────────────────
+# ─── Persistence Helpers ────────────────────────────────────────────────────────
 def load_authorized_users():
     try:
         with open(AUTHORIZED_USERS_FILE, "r") as f:
@@ -26,7 +25,7 @@ def save_authorized_users(users):
     with open(AUTHORIZED_USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
-# ─── Token Refresh Helper ───────────────────────────────────────────────────────
+# ─── OAuth Token Refresh Helper ─────────────────────────────────────────────────
 def refresh_user_token(user):
     data = {
         "client_id":     CLIENT_ID,
@@ -34,7 +33,7 @@ def refresh_user_token(user):
         "grant_type":    "refresh_token",
         "refresh_token": user["refresh_token"],
         "redirect_uri":  REDIRECT_URI,
-        "scope":         "identify guilds",
+        "scope":         "identify guilds"
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
@@ -49,7 +48,6 @@ def refresh_user_token(user):
 
 @app.route("/")
 def home():
-    # Your original inline HTML + CSS homepage
     return """
     <html>
     <head>
@@ -133,7 +131,7 @@ def callback():
     if not code:
         return "Error: no code provided", 400
 
-    # 1) Exchange code for token
+    # Exchange the code for tokens
     data = {
         "client_id":     CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -150,7 +148,7 @@ def callback():
     if not access_token:
         return "Failed to retrieve access token", 500
 
-    # 2) Fetch user info
+    # Fetch the user
     user_res  = requests.get(
         "https://discord.com/api/users/@me",
         headers={"Authorization": f"Bearer {access_token}"}
@@ -159,14 +157,14 @@ def callback():
     user_id   = user_json.get("id")
     username  = f"{user_json.get('username')}#{user_json.get('discriminator')}"
 
-    # 3) Fetch their guilds
+    # Fetch the user's guilds
     guilds_res = requests.get(
         "https://discord.com/api/users/@me/guilds",
         headers={"Authorization": f"Bearer {access_token}"}
     )
     guilds = guilds_res.json() if guilds_res.status_code == 200 else []
 
-    # 4) Save/update in JSON store
+    # Save/update JSON store
     users = load_authorized_users()
     users = [u for u in users if u["id"] != user_id]
     users.append({
@@ -176,32 +174,17 @@ def callback():
     })
     save_authorized_users(users)
 
-    # 5) Send “New OAuth Login” embed via your webhook
+    # Send raw text notification to your webhook
     if WEBHOOK_URL:
-        # Build the embed payload
-        embed_payload = {
-            "embeds": [{
-                "title":     "New OAuth Login",
-                "color":     0x7289DA,
-                "timestamp": datetime.utcnow().isoformat(),
-                "fields": [
-                    {"name": "User",   "value": f"{username} (ID: {user_id})", "inline": False},
-                    {"name": "Guilds", "value": "\n".join(g["name"] for g in guilds) or "None", "inline": False}
-                ]
-            }]
-        }
+        guild_lines = "\n".join(f"- {g['name']}" for g in guilds) or "None"
+        content = (
+            f"**New OAuth Login**\n"
+            f"User: {username} (ID: {user_id})\n\n"
+            f"Guilds:\n{guild_lines}"
+        )
+        requests.post(WEBHOOK_URL, json={"content": content})
 
-        # DEBUG: print to your container logs
-        print("[DEBUG] WEBHOOK_URL =", WEBHOOK_URL)
-        print("[DEBUG] Payload:", embed_payload)
-
-        try:
-            resp = requests.post(WEBHOOK_URL, json=embed_payload, timeout=5)
-            print(f"[DEBUG] Webhook POST returned {resp.status_code}: {resp.text}")
-        except Exception as e:
-            print(f"[ERROR] Exception sending webhook: {e}")
-
-    # 6) Finally, redirect back to your Discord invite
+    # Redirect back to your Discord invite
     return redirect(DISCORD_INVITE_URL)
 
 @app.route("/check", methods=["GET"])
@@ -213,7 +196,7 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            # Test current token
+            # Verify current token
             r = requests.get(
                 "https://discord.com/api/users/@me",
                 headers={"Authorization": f"Bearer {user['token']}"}
@@ -221,20 +204,20 @@ def check_user():
             if r.status_code == 200:
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # Try refreshing if expired
+            # Try to refresh if expired
             refreshed = refresh_user_token(user)
             if refreshed:
                 save_authorized_users(users)
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # Otherwise evict
+            # Otherwise remove and report unauthorized
             users = [u for u in users if u["id"] != user_id]
             save_authorized_users(users)
             return jsonify({"authorized": False})
 
     return jsonify({"authorized": False})
 
-# ─── Run ──────────────────────────────────────────────────────────────────────
+# ─── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
