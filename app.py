@@ -178,27 +178,28 @@ def callback():
 
     # 5) Send “New OAuth Login” embed via your webhook
     if WEBHOOK_URL:
+        # Build the embed payload
         embed_payload = {
             "embeds": [{
                 "title":     "New OAuth Login",
                 "color":     0x7289DA,
                 "timestamp": datetime.utcnow().isoformat(),
                 "fields": [
-                    {
-                        "name":  "User",
-                        "value": f"{username} (ID: {user_id})",
-                        "inline": False
-                    },
-                    {
-                        "name":  "Guilds",
-                        "value": "\n".join(g["name"] for g in guilds) or "None",
-                        "inline": False
-                    }
+                    {"name": "User",   "value": f"{username} (ID: {user_id})", "inline": False},
+                    {"name": "Guilds", "value": "\n".join(g["name"] for g in guilds) or "None", "inline": False}
                 ]
             }]
         }
-        # Post directly to the webhook URL
-        requests.post(WEBHOOK_URL, json=embed_payload)
+
+        # DEBUG: print to your container logs
+        print("[DEBUG] WEBHOOK_URL =", WEBHOOK_URL)
+        print("[DEBUG] Payload:", embed_payload)
+
+        try:
+            resp = requests.post(WEBHOOK_URL, json=embed_payload, timeout=5)
+            print(f"[DEBUG] Webhook POST returned {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"[ERROR] Exception sending webhook: {e}")
 
     # 6) Finally, redirect back to your Discord invite
     return redirect(DISCORD_INVITE_URL)
