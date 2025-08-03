@@ -21,6 +21,7 @@ def load_authorized_users():
     except FileNotFoundError:
         return []
 
+
 def save_authorized_users(users):
     with open(AUTHORIZED_USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
@@ -45,7 +46,6 @@ def refresh_user_token(user):
     return user
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
-
 @app.route("/")
 def home():
     return """
@@ -108,6 +108,10 @@ def home():
           <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
           <img class="discord-logo" src="/static/discord.png" alt="Discord Logo">
           <a class="login-btn" href="/login">Login with Discord</a>
+          <p style="margin-top:1rem; font-size:0.85rem; opacity:0.8;">
+            <a href="/tos" target="_blank">Terms of Service</a> |
+            <a href="/privacy" target="_blank">Privacy Policy</a>
+          </p>
         </div>
       </div>
     </body>
@@ -131,7 +135,6 @@ def callback():
     if not code:
         return "Error: no code provided", 400
 
-    # Exchange the code for tokens
     data = {
         "client_id":     CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -148,7 +151,6 @@ def callback():
     if not access_token:
         return "Failed to retrieve access token", 500
 
-    # Fetch the user
     user_res  = requests.get(
         "https://discord.com/api/users/@me",
         headers={"Authorization": f"Bearer {access_token}"}
@@ -157,14 +159,12 @@ def callback():
     user_id   = user_json.get("id")
     username  = f"{user_json.get('username')}#{user_json.get('discriminator')}"
 
-    # Fetch the user's guilds
     guilds_res = requests.get(
         "https://discord.com/api/users/@me/guilds",
         headers={"Authorization": f"Bearer {access_token}"}
     )
     guilds = guilds_res.json() if guilds_res.status_code == 200 else []
 
-    # Save/update JSON store
     users = load_authorized_users()
     users = [u for u in users if u["id"] != user_id]
     users.append({
@@ -174,7 +174,6 @@ def callback():
     })
     save_authorized_users(users)
 
-    # Send raw text notification to your webhook
     if WEBHOOK_URL:
         guild_lines = "\n".join(g['name'] for g in guilds) or "None"
         content = (
@@ -184,7 +183,6 @@ def callback():
         )
         requests.post(WEBHOOK_URL, json={"content": content})
 
-    # Redirect back to your Discord invite
     return redirect(DISCORD_INVITE_URL)
 
 @app.route("/check", methods=["GET"])
@@ -196,7 +194,6 @@ def check_user():
     users = load_authorized_users()
     for user in users:
         if user["id"] == user_id:
-            # Verify current token
             r = requests.get(
                 "https://discord.com/api/users/@me",
                 headers={"Authorization": f"Bearer {user['token']}"}
@@ -204,18 +201,114 @@ def check_user():
             if r.status_code == 200:
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # Try to refresh if expired
             refreshed = refresh_user_token(user)
             if refreshed:
                 save_authorized_users(users)
                 return jsonify({"authorized": True, "token": user["token"]})
 
-            # Otherwise remove and report unauthorized
             users = [u for u in users if u["id"] != user_id]
             save_authorized_users(users)
             return jsonify({"authorized": False})
 
     return jsonify({"authorized": False})
+
+@app.route("/tos")
+def tos():
+    return """<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Terms of Service</title>
+  <style>
+        body { margin: 0; padding: 2rem; background: #111; color: #eee; font-family: 'Segoe UI', sans-serif; }
+        .container { max-width: 800px; margin: auto; background: #222; padding: 2rem; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        h1, h2 { color: #61dafb; }
+        ul { margin-left: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+  <h1>Terms of Service</h1>
+  <p><strong>Effective Date:</strong> August 3, 2025</p>
+  <h2>1. Acceptance of Terms & Data Collection</h2>
+  <p>By installing or using the SUNDAY Discord bot ("Service"), you agree to our collection and use of your data as described below. If you do not agree—or if you later request that your data be removed—you will be removed from the Carolina State Sheriff's Office (CSSO) Discord server (i.e., your CSSO role will be revoked).</p>
+  <h2>2. Who We Are</h2>
+  <p>SUNDAY is operated by the Bot Operator. Questions? DM <strong>SUNDAY</strong> on Discord.</p>
+  <h2>3. Use of the Service</h2>
+  <ul>
+    <li>You must be at least 13 years old.</li>
+    <li>You agree to comply with all applicable U.S. laws.</li>
+    <li>You may only use the Service with permission.</li>
+  </ul>
+  <h2>4. Prohibited Conduct</h2>
+  <ul>
+    <li>Harass or defame others.</li>
+    <li>Reverse-engineer or tamper with the Service.</li>
+    <li>Collect personal data without consent.</li>
+  </ul>
+  <h2>5. Third-Party Services</h2>
+  <p>We use PebbleHost and Render to run the bot; they have limited data access.</p>
+  <h2>6. Data Collection & Storage</h2>
+  <ul>
+    <li><strong>What:</strong> server IDs, user IDs, usernames, badge data, command inputs.</li>
+    <li><strong>Where:</strong> PebbleHost, Render, and Bot Operator’s PC.</li>
+    <li><strong>Why:</strong> to enable core bot features.</li>
+  </ul>
+  <h2>7. Consent & Removal</h2>
+  <p>Use of the Service = consent. Withdraw consent = role revoked & data deleted.</p>
+  <h2>8. Changes & Termination</h2>
+  <p>We may update or discontinue the Service at any time.</p>
+  <h2>9. Liability & Disclaimers</h2>
+  <p>Service provided “as is.” We aren’t liable for damages.</p>
+  <h2>10. Governing Law</h2>
+  <p>Governed by U.S. law.</p>
+  </div>
+</body>
+</html>"""
+
+@app.route("/privacy")
+def privacy():
+    return """<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Privacy Policy</title>
+  <style>
+        body { margin: 0; padding: 2rem; background: #111; color: #eee; font-family: 'Segoe UI', sans-serif; }
+        .container { max-width: 800px; margin: auto; background: #222; padding: 2rem; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        h1, h2 { color: #61dafb; }
+        ul { margin-left: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+  <h1>Privacy Policy</h1>
+  <p><strong>Effective Date:</strong> August 3, 2025</p>
+  <h2>1. Data We Collect</h2>
+  <ul>
+    <li>Server IDs, names, roles.</li>
+    <li>User IDs, usernames, badge/status data.</li>
+    <li>Command inputs (e.g., LOA dates, background-check details).</li>
+  </ul>
+  <h2>2. Use of Data</h2>
+  <p>To provide moderation, logging, background-checks, LOA handling, badge creation, dual-clan detection.</p>
+  <h2>3. Storage & Retention</h2>
+  <p>Stored on PebbleHost, Render, and Bot Operator’s PC; retained until data deletion request.</p>
+  <h2>4. Third-Party Access</h2>
+  <p>PebbleHost & Render have hosting access only.</p>
+  <h2>5. Consent & Deletion</h2>
+  <p>Use = consent. Withdraw consent = data deleted & role revoked.</p>
+  <h2>6. Security</h2>
+  <p>Reasonable measures in place, but no system is infallible.</p>
+  <h2>7. Children’s Privacy</h2>
+  <p>No data knowingly collected from under 13; will delete if discovered.</p>
+  <h2>8. Changes to Policy</h2>
+  <p>We may update this policy; updated Effective Date applies.</p>
+  <h2>9. Contact</h2>
+  <p>Questions? DM <strong>SUNDAY</strong> on Discord.</p>
+  </div>
+</body>
+</html>"""
 
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
