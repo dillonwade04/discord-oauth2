@@ -6,16 +6,12 @@ import json
 app = Flask(__name__, static_folder="static")
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
-def _getenv(key, default=""):
-    v = os.environ.get(key, default)
-    return v.strip() if isinstance(v, str) else v
-
-AUTHORIZED_USERS_FILE = _getenv("AUTHORIZED_USERS_FILE", "/data/authorized_users.json")
-CLIENT_ID            = _getenv("DISCORD_CLIENT_ID",     "YOUR_CLIENT_ID")
-CLIENT_SECRET        = _getenv("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
-REDIRECT_URI         = _getenv("DISCORD_REDIRECT_URI",  "http://localhost:5000/callback")
-WEBHOOK_URL          = _getenv("DISCORD_WEBHOOK_URL",   "")
-DISCORD_INVITE_URL   = _getenv("DISCORD_INVITE_URL",    "REMOVED_DISCORD_INVITE_URL")
+AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
+CLIENT_ID            = os.environ.get("DISCORD_CLIENT_ID",     "YOUR_CLIENT_ID")
+CLIENT_SECRET        = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+REDIRECT_URI         = os.environ.get("DISCORD_REDIRECT_URI",  "http://localhost:5000/callback")
+WEBHOOK_URL          = os.environ.get("DISCORD_WEBHOOK_URL",   "")
+DISCORD_INVITE_URL   = "REMOVED_DISCORD_INVITE_URL"
 
 # ─── Persistence Helpers ────────────────────────────────────────────────────────
 def load_authorized_users():
@@ -27,14 +23,8 @@ def load_authorized_users():
 
 
 def save_authorized_users(users):
-    try:
-        dirname = os.path.dirname(AUTHORIZED_USERS_FILE)
-        if dirname:
-            os.makedirs(dirname, exist_ok=True)
-        with open(AUTHORIZED_USERS_FILE, "w") as f:
-            json.dump(users, f, indent=2)
-    except Exception as e:
-        app.logger.error("Failed to save authorized users: %s", e)
+    with open(AUTHORIZED_USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
 
 # ─── OAuth Token Refresh Helper ─────────────────────────────────────────────────
 def refresh_user_token(user):
@@ -62,25 +52,66 @@ def home():
     <html>
     <head>
       <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>CSSO OAuth</title>
+      <title>Carolina State Sheriff's Office</title>
       <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:0; padding:0; background:#0b0b0f; color:#e8e8f0; }
-        .wrap { max-width: 900px; margin: 0 auto; padding: 32px; }
-        .hero { padding: 32px; border: 1px solid #23232b; border-radius: 16px; background: #13131a; }
-        a.btn { background:#5865F2; color:white; padding:12px 18px; border-radius:10px; text-decoration:none; display:inline-block; }
-        .small { color:#a5a7b3; font-size: 13px; }
-        code { background:#191a22; padding:2px 6px; border-radius:6px; }
+        body {
+          margin: 0; padding: 0; height: 100vh;
+          background: url('/static/cssobanner.gif') no-repeat center center fixed;
+          background-size: cover;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          color: #fff; overflow: hidden;
+        }
+        .overlay {
+          position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.7);
+        }
+        .content {
+          position: relative; z-index: 2;
+          display: flex; align-items: center; justify-content: center;
+          height: 100vh; text-align: center;
+        }
+        .card {
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(10px);
+          padding: 2rem 3rem;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          max-width: 360px; width: 90%;
+        }
+        .logo { width: 80px; margin-bottom: 1rem; }
+        h2 { margin: 0.5rem 0; font-size: 1.5rem; }
+        p  { margin: 0.5rem 0 1rem; opacity: 0.85; }
+        .discord-logo {
+          display: block; width: 60px; margin: 1rem auto; opacity: 0.8;
+        }
+        .login-btn {
+          display: inline-block; padding: 0.75rem 2rem; font-size: 1rem;
+          text-transform: uppercase; letter-spacing: 1px;
+          background: linear-gradient(135deg,#7289da 0%,#99a7f2 100%);
+          color:#fff; border:none; border-radius:8px;
+          text-decoration:none;
+          box-shadow:0 0 15px rgba(114,137,218,0.7);
+          transition:box-shadow .3s ease,transform .2s ease;
+        }
+        .login-btn:hover {
+          box-shadow:0 0 25px rgba(114,137,218,0.9);
+          transform: translateY(-2px);
+        }
       </style>
     </head>
     <body>
-      <div class="wrap">
-        <div class="hero">
-          <h1>Carolina State Sheriff’s Office – Auth</h1>
-          <p>Login with Discord to verify and continue.</p>
-          <p><a class="btn" href="/login">Login with Discord</a></p>
-          <p class="small">Redirect URI in use: <code>""" + REDIRECT_URI + """</code></p>
-          <p class="small"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
+      <div class="overlay"></div>
+      <div class="content">
+        <div class="card">
+          <img class="logo" src="/static/CSSO_sheriff_STAR.png" alt="CSSO Logo">
+          <h2>Carolina State Sheriff's Office</h2>
+          <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
+          <img class="discord-logo" src="/static/discord.png" alt="Discord Logo">
+          <a class="login-btn" href="/login">Login with Discord</a>
+          <p style="margin-top:1rem; font-size:0.85rem; opacity:0.8;">
+            <a href="/tos" target="_blank">Terms of Service</a> |
+            <a href="/privacy" target="_blank">Privacy Policy</a>
+          </p>
         </div>
       </div>
     </body>
@@ -89,7 +120,6 @@ def home():
 
 @app.route("/login")
 def login():
-    app.logger.info("Using REDIRECT_URI=%s", REDIRECT_URI)
     params = {
         "client_id":     CLIENT_ID,
         "redirect_uri":  REDIRECT_URI,
@@ -114,16 +144,12 @@ def callback():
         "scope":         "identify guilds"
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    token_res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers, timeout=15)
-    if token_res.status_code != 200:
-        app.logger.error("OAuth token exchange failed: %s | %s", token_res.status_code, token_res.text)
-        return f"OAuth token exchange failed: {token_res.text}", 400
+    token_res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
     token_json = token_res.json()
     access_token  = token_json.get("access_token")
     refresh_token = token_json.get("refresh_token")
     if not access_token:
-        app.logger.error("OAuth token response missing access_token: %s", token_res.text)
-        return "OAuth token exchange failed: no access_token", 400
+        return "Failed to retrieve access token", 500
 
     user_res  = requests.get(
         "https://discord.com/api/users/@me",
@@ -155,10 +181,7 @@ def callback():
             f"User: {username} (ID: {user_id})\n"
             f"Guilds:\n{guild_lines}"
         )
-        try:
-            requests.post(WEBHOOK_URL, json={"content": content}, timeout=10)
-        except Exception as e:
-            app.logger.warning("Webhook post failed: %s", e)
+        requests.post(WEBHOOK_URL, json={"content": content})
 
     return redirect(DISCORD_INVITE_URL)
 
@@ -177,49 +200,49 @@ def check_user():
             )
             if r.status_code == 200:
                 return jsonify({"authorized": True, "token": user["token"]})
-            # try refreshing
-            new_user = refresh_user_token(user)
-            if new_user:
-                save_authorized_users([u if u["id"] != user_id else new_user for u in users])
-                return jsonify({"authorized": True, "token": new_user["token"]})
-            break
 
-    return jsonify({"authorized": False}), 200
+            refreshed = refresh_user_token(user)
+            if refreshed:
+                save_authorized_users(users)
+                return jsonify({"authorized": True, "token": user["token"]})
 
-@app.route("/terms")
-def terms():
-    return """
-<!DOCTYPE html>
-<html lang="en">
+            users = [u for u in users if u["id"] != user_id]
+            save_authorized_users(users)
+            return jsonify({"authorized": False})
+
+    return jsonify({"authorized": False})
+
+@app.route("/tos")
+def tos():
+    return """<!DOCTYPE html>
+<html>
 <head>
-<meta charset="UTF-8" />
-<title>Terms of Service — CSSO Auth</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0b0b0f; color:#e8e8f0; margin:0; }
-  .wrap { max-width: 900px; margin:0 auto; padding:32px; }
-  h1, h2 { color:#fff; }
-  p, li { color:#c8cad6; line-height:1.6; }
-  a { color:#9bb2ff; }
-  code { background:#191a22; padding:2px 6px; border-radius:6px; }
-  .card { background:#13131a; border:1px solid #23232b; border-radius:16px; padding:24px; }
-</style>
+  <meta charset="utf-8">
+  <title>Terms of Service</title>
+  <style>
+    body { margin: 0; padding: 2rem; background: #111; color: #eee; font-family: 'Segoe UI', sans-serif; }
+    .container { max-width: 800px; margin: auto; background: #222; padding: 2rem; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    h1, h2 { color: #61dafb; }
+    ul, ol { margin-left: 1.5rem; }
+  </style>
 </head>
 <body>
-  <div class="wrap card">
+  <div class="container">
     <h1>Terms of Service</h1>
-    <p><em>Effective Date: 2025-01-01</em></p>
+    <p><strong>Effective Date:</strong> August 3, 2025</p>
 
-    <p>Welcome to the Carolina State Sheriff’s Office (CSSO) Authentication Service (“Service”). These terms govern your access to and use of the Service.</p>
+    <h2>1. Acceptance of Terms & Data Collection</h2>
+    <p>By installing or using the SUNDAY Discord bot (“Service”), you agree to our collection and use of your data as described below. If you do <strong>not</strong> agree—or if you later request that your data be removed—you will be removed from the Carolina State Sheriff’s Office (CSSO) Discord server (i.e., your CSSO role will be revoked). If you do not agree, do not use the Service.</p>
 
-    <h2>1. Acceptance of Terms</h2>
-    <p>By accessing or using the Service, you agree to these Terms. If you do not agree, do not use the Service.</p>
+    <h2>2. Who We Are</h2>
+    <p>SUNDAY is operated by the Bot Operator (“we,” “us,” “our”). Questions? Send a direct message to <strong>SUNDAY</strong> on Discord.</p>
 
-    <h2>2. Description of Service</h2>
-    <p>The Service provides Discord OAuth-based authentication and basic verification to grant access to CSSO resources.</p>
-
-    <h2>3. Eligibility</h2>
-    <p>You must comply with Discord’s Terms and any CSSO rules. If you are under 13, you may not use the Service.</p>
+    <h2>3. Use of the Service</h2>
+    <ul>
+      <li>You must be at least 13 years old.</li>
+      <li>You agree to comply with all applicable U.S. federal, state, and local laws.</li>
+      <li>You may only use the Service on servers where you have permission.</li>
+    </ul>
 
     <h2>4. Prohibited Conduct</h2>
     <ul>
@@ -230,98 +253,99 @@ def terms():
     </ul>
 
     <h2>5. Third-Party Services</h2>
-    <p>We rely on hosting providers PebbleHost and Render to run the Service. These providers may have limited access to data solely to provide hosting and runtime.</p>
+    <p>We rely on hosting providers PebbleHost and Render to run the bot. They have limited access to data solely to provide hosting and runtime.</p>
 
     <h2>6. Data Collection & Storage</h2>
     <ul>
-      <li><strong>What we collect:</strong> server data (IDs, names), basic Discord profile info (user ID, username/global name), and voluntary form inputs (e.g. background-check details, LOA dates/reasons).</li>
-      <li><strong>Storage:</strong> Minimal data stored in a JSON file for access control.</li>
-      <li><strong>Retention:</strong> Data is retained only as long as necessary for operational purposes.</li>
+      <li><strong>What we collect:</strong> server data (IDs, names, roles), user IDs, usernames, badge/status data, command inputs (e.g. background-check details, LOA dates/reasons).</li>
+      <li><strong>Where it’s stored:</strong> PebbleHost, Render, and the Bot Operator’s personal PC.</li>
+      <li><strong>Why we collect it:</strong> to enable bot features (moderation, logging, background checks, LOA handling, badge creation, dual-clan detection, OAuth guild fetch).</li>
     </ul>
 
-    <h2>7. Disclaimers</h2>
-    <p>The Service is provided “as is” without warranties of any kind.</p>
+    <h2>7. Consent & Removal</h2>
+    <p>Your use of the Service constitutes consent to this data collection. If you request deletion of your data—or otherwise withdraw consent—we will revoke your CSSO role and remove your access to the CSSO server.</p>
 
-    <h2>8. Limitation of Liability</h2>
-    <p>To the fullest extent permitted by law, CSSO shall not be liable for any indirect, incidental, special, consequential, or punitive damages.</p>
+    <h2>8. Modifications & Termination</h2>
+    <p>We may modify or discontinue the Service (or these Terms) at any time. Continued use after changes constitutes acceptance. We reserve the right to suspend or terminate your access for violations.</p>
 
-    <h2>9. Changes to These Terms</h2>
-    <p>We may update these Terms; the “Effective Date” will change. Continued use after changes constitutes acceptance.</p>
+    <h2>9. Disclaimers</h2>
+    <p>The Service is provided “as is,” without warranties of any kind. We do not guarantee uptime, accuracy, or fitness for any particular purpose.</p>
 
-    <h2>10. Contact</h2>
-    <p>Questions? DM <strong>SUNDAY</strong> on Discord.</p>
+    <h2>10. Limitation of Liability</h2>
+    <p>In no event will we be liable for indirect, incidental, special, or consequential damages arising from your use of the Service.</p>
+
+    <h2>11. Indemnification</h2>
+    <p>You agree to defend and indemnify us against any claims, damages, or losses arising from your violation of these Terms.</p>
+
+    <h2>12. Governing Law</h2>
+    <p>These Terms are governed by U.S. law, without regard to conflict-of-law principles.</p>
   </div>
 </body>
-</html>
-"""
+</html>"""
 
 @app.route("/privacy")
 def privacy():
-    return """
-<!DOCTYPE html>
-<html lang="en">
+    return """<!DOCTYPE html>
+<html>
 <head>
-<meta charset="UTF-8" />
-<title>Privacy Policy — CSSO Auth</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0b0b0f; color:#e8e8f0; margin:0; }
-  .wrap { max-width: 900px; margin:0 auto; padding:32px; }
-  h1, h2 { color:#fff; }
-  p, li { color:#c8cad6; line-height:1.6; }
-  a { color:#9bb2ff; }
-  code { background:#191a22; padding:2px 6px; border-radius:6px; }
-  .card { background:#13131a; border:1px solid #23232b; border-radius:16px; padding:24px; }
-</style>
+  <meta charset="utf-8">
+  <title>Privacy Policy</title>
+  <style>
+    body { margin: 0; padding: 2rem; background: #111; color: #eee; font-family: 'Segoe UI', sans-serif; }
+    .container { max-width: 800px; margin: auto; background: #222; padding: 2rem; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    h1, h2 { color: #61dafb; }
+    ul, ol { margin-left: 1.5rem; }
+  </style>
 </head>
 <body>
-  <div class="wrap card">
+  <div class="container">
     <h1>Privacy Policy</h1>
-    <p><em>Effective Date: 2025-01-01</em></p>
+    <p><strong>Effective Date:</strong> August 3, 2025</p>
 
-    <h2>1. Information We Collect</h2>
+    <h2>1. Introduction</h2>
+    <p>This Privacy Policy explains how SUNDAY (“we,” “us,” “our”) collects, uses, and shares your information when you use our Discord bot (“Service”).</p>
+
+    <h2>2. Information We Collect</h2>
     <ul>
-      <li>Discord user ID and basic profile info (username/global name).</li>
-      <li>CSSO operational inputs you voluntarily submit (e.g. background-check form data, LOA dates/reasons).</li>
-      <li>Server/guild metadata necessary to verify access.</li>
+      <li><strong>Server Data:</strong> server ID, name, roles.</li>
+      <li><strong>User Data:</strong> Discord user ID, username, badge/status data.</li>
+      <li><strong>Command Inputs:</strong> any free-text or option data you submit (e.g., background-check Steam hex, LOA dates/reasons).</li>
     </ul>
 
-    <h2>2. How We Use Information</h2>
+    <h2>3. How We Use Your Information</h2>
     <ul>
-      <li>Authenticate users and grant CSSO access.</li>
-      <li>Audit, security, and abuse prevention.</li>
-      <li>Compliance with platform and community rules.</li>
+      <li>To enable core features: moderation, logging, background-check workflows, leave-of-absence handling, badge creation, dual-clan detection.</li>
+      <li>To troubleshoot issues and improve the Service.</li>
+      <li>To comply with legal obligations.</li>
     </ul>
 
-    <h2>3. Sharing</h2>
-    <p>We do not sell your data. Limited sharing occurs only with service providers (hosting/runtime) and when required by law.</p>
+    <h2>4. Data Storage & Retention</h2>
+    <p><strong>Storage Locations:</strong> PebbleHost, Render, and the Bot Operator’s personal PC.<br>
+    <strong>Retention Period:</strong> Data is kept as long as you remain on the CSSO server or until you request deletion.</p>
 
-    <h2>4. Data Security</h2>
-    <p>We use reasonable measures to protect data. No method of transmission or storage is 100% secure.</p>
+    <h2>5. Third-Party Access</h2>
+    <p>PebbleHost and Render have access solely to host and run the bot. We do not sell or rent your data.</p>
 
-    <h2>5. Data Retention</h2>
-    <p>We keep data only as long as needed for the purposes above, then delete it.</p>
+    <h2>6. Consent & Deletion</h2>
+    <ol>
+      <li>Remove your data from all active systems.</li>
+      <li>Revoke your CSSO role, removing your access to the CSSO Discord server.</li>
+    </ol>
 
-    <h2>6. Your Choices</h2>
-    <p>You may request access or deletion of your data by contacting the CSSO admins.</p>
+    <h2>7. Security</h2>
+    <p>We implement reasonable measures to protect your data. However, no system is completely secure—use at your own risk.</p>
 
-    <h2>7. Children’s Privacy</h2>
+    <h2>8. Children’s Privacy</h2>
     <p>We do not knowingly collect data from anyone under 13. If we discover such data, we will delete it.</p>
 
-    <h2>8. Changes</h2>
+    <h2>9. Changes to This Policy</h2>
     <p>We may update this Privacy Policy; the “Effective Date” will change. Continued use after changes constitutes acceptance.</p>
 
-    <h2>9. Contact</h2>
+    <h2>10. Contact Us</h2>
     <p>For questions or requests, send a direct message to <strong>SUNDAY</strong> on Discord.</p>
   </div>
 </body>
-</html>
-"""
-
-# ─── Health ────────────────────────────────────────────────────────────────────
-@app.route("/health")
-def health():
-    return jsonify({"status":"ok", "redirect_uri": REDIRECT_URI}), 200
+</html>"""
 
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
