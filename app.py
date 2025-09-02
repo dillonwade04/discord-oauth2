@@ -347,6 +347,12 @@ def privacy():
 </body>
 </html>"""
 
+
+@app.route("/health")
+def health():
+    return "ok", 200
+
+
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
