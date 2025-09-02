@@ -145,11 +145,20 @@ def callback():
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     token_res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
-    token_json = token_res.json()
+
+    try:
+        token_json = token_res.json()
+    except Exception as e:
+        return f"Failed to parse token response: {e}\n\nRaw response:\n{token_res.text}", 500
+
+    if "error" in token_json:
+        return f"Discord OAuth error: {token_json['error_description']}", 400
+
     access_token  = token_json.get("access_token")
     refresh_token = token_json.get("refresh_token")
+
     if not access_token:
-        return "Failed to retrieve access token", 500
+        return f"Failed to retrieve access token.\nResponse: {token_json}", 500
 
     user_res  = requests.get(
         "https://discord.com/api/users/@me",
