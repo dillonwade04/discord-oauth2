@@ -6,13 +6,15 @@ import json
 app = Flask(__name__, static_folder="static")
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
-AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
-CLIENT_ID            = os.environ.get("DISCORD_CLIENT_ID",     "YOUR_CLIENT_ID")
-CLIENT_SECRET        = os.environ.get("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
-REDIRECT_URI         = os.environ.get("DISCORD_REDIRECT_URI",  "http://localhost:5000/callback")
-WEBHOOK_URL          = os.environ.get("DISCORD_WEBHOOK_URL",   "")
-DISCORD_INVITE_URL   = "REMOVED_DISCORD_INVITE_URL"
+def getenv_strip(key, default=""):
+    v = os.environ.get(key, default)
+    return v.strip() if isinstance(v, str) else v
 
+AUTHORIZED_USERS_FILE = "/data/authorized_users.json"
+CLIENT_ID  = getenv_strip("DISCORD_CLIENT_ID", "YOUR_CLIENT_ID")
+CLIENT_SECRET = getenv_strip("DISCORD_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+REDIRECT_URI  = getenv_strip("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+WEBHOOK_URL   = getenv_strip("DISCORD_WEBHOOK_URL", "")
 # ─── Persistence Helpers ────────────────────────────────────────────────────────
 def load_authorized_users():
     try:
@@ -135,15 +137,23 @@ def callback():
     if not code:
         return "Error: no code provided", 400
 
+    import requests
+
+# ... inside /callback after you receive ?code=...
     data = {
-        "client_id":     CLIENT_ID,
+        "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "grant_type":    "authorization_code",
-        "code":          code,
-        "redirect_uri":  REDIRECT_URI,
-        "scope":         "identify guilds"
+        "grant_type": "authorization_code",
+        "code": request.args.get("code"),
+        "redirect_uri": REDIRECT_URI,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+    res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers, timeout=10)
+    if res.status_code != 200:
+        app.logger.error("OAuth token exchange failed: %s | %s", res.status_code, res.text)
+        return f"OAuth token exchange failed: {res.text}", 400
+    tok = res.json()
     token_res = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
 
     try:
