@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>Carolina State Sheriff's Office</title>
+  </head>
+  <body class="home-page">
+    <div class="overlay" aria-hidden="true"></div>
+    <main class="centered-content">
+      <section class="login-card" aria-labelledby="portal-title">
+        <img class="sheriff-logo" src="{{ url_for('static', filename='CSSO_sheriff_STAR.png') }}" alt="CSSO sheriff star">
+        <h1 id="portal-title">Carolina State Sheriff's Office</h1>
+        <p>Welcome to the CSSO Portal. Log in with Discord to continue.</p>
+        <img class="discord-logo" src="{{ url_for('static', filename='discord.png') }}" alt="Discord">
+        <a class="login-button" href="{{ url_for('login') }}">Log in with Discord</a>
+        <nav class="policy-links" aria-label="Legal">
+          <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener">Terms of Service</a>
+          <span aria-hidden="true">|</span>
+          <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener">Privacy Policy</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>
