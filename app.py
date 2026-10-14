@@ -6,7 +6,11 @@ import hmac
 import json
 import os
 import secrets
+import tempfile
+from functools import wraps
 from pathlib import Path
+
+from filelock import FileLock
 
 import requests
 from flask import Flask, jsonify, redirect, render_template, request, session
@@ -53,25 +57,64 @@ app.config.update(
 )
 
 
+def prepare_private_store() -> None:
+    """Keep token and lock files in a dedicated, private data directory."""
+    directory = AUTHORIZED_USERS_FILE.resolve().parent
+    static = (BASE_DIR / "static").resolve()
+    if (
+        directory == BASE_DIR.resolve()
+        or directory == Path(directory.anchor)
+        or directory == static
+        or static in directory.parents
+    ):
+        raise RuntimeError("Token storage requires a dedicated non-public directory")
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    directory.chmod(0o700)
+    if AUTHORIZED_USERS_FILE.exists():
+        AUTHORIZED_USERS_FILE.chmod(0o600)
+
+
+def store_transaction(function):
+    """Serialize the complete read/modify/write operation across workers."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        prepare_private_store()
+        with FileLock(str(AUTHORIZED_USERS_FILE) + ".lock", timeout=60, mode=0o600):
+            return function(*args, **kwargs)
+    return wrapped
+
+
 def load_authorized_users() -> list[dict]:
-    """Load stored Discord OAuth records from the private data volume."""
     try:
         with AUTHORIZED_USERS_FILE.open("r", encoding="utf-8") as file:
             data = json.load(file)
-            return data if isinstance(data, list) else []
+            if not isinstance(data, list):
+                raise ValueError("Invalid authorization store")
+            return data
     except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        app.logger.warning("Authorized-user data is not valid JSON")
         return []
 
 
 def save_authorized_users(users: list[dict]) -> None:
-    """Atomically save OAuth records outside version control."""
-    AUTHORIZED_USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temporary_file = AUTHORIZED_USERS_FILE.with_suffix(".json.tmp")
-    temporary_file.write_text(json.dumps(users, indent=2), encoding="utf-8")
-    temporary_file.replace(AUTHORIZED_USERS_FILE)
+    """Replace the private store using a unique, owner-readable temporary file."""
+    prepare_private_store()
+    descriptor, name = tempfile.mkstemp(prefix=".oauth-", dir=AUTHORIZED_USERS_FILE.parent)
+    temporary_file = Path(name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            json.dump(users, file, indent=2)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary_file.replace(AUTHORIZED_USERS_FILE)
+    finally:
+        temporary_file.unlink(missing_ok=True)
+
+
+@store_transaction
+def upsert_authorized_user(record: dict) -> None:
+    users = [user for user in load_authorized_users() if user.get("id") != record["id"]]
+    users.append(record)
+    save_authorized_users(users)
 
 
 def valid_api_secret() -> bool:
@@ -206,15 +249,7 @@ def callback():
     if not user_id:
         return "Discord did not return a user ID", 502
 
-    users = [user for user in load_authorized_users() if user.get("id") != user_id]
-    users.append(
-        {
-            "id": user_id,
-            "token": access_token,
-            "refresh_token": refresh_token,
-        }
-    )
-    save_authorized_users(users)
+    upsert_authorized_user({"id": user_id, "token": access_token, "refresh_token": refresh_token})
 
     if DISCORD_WEBHOOK_URL:
         username = user_data.get("global_name") or user_data.get("username", "Unknown")
@@ -227,7 +262,7 @@ def callback():
         try:
             requests.post(
                 DISCORD_WEBHOOK_URL,
-                json={"content": content},
+                json={"content": content[:2000], "allowed_mentions": {"parse": []}},
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
         except requests.RequestException:
@@ -245,6 +280,11 @@ def check_user():
     if not user_id:
         return jsonify({"error": "No user_id provided"}), 400
 
+    return check_authorized_user(user_id)
+
+
+@store_transaction
+def check_authorized_user(user_id):
     users = load_authorized_users()
     for user in users:
         if user.get("id") != user_id:

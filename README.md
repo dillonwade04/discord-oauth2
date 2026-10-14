@@ -118,3 +118,24 @@ python -m compileall -q app.py tests
 
 See [SECURITY.md](SECURITY.md). Public repository visibility does not grant
 permission to reuse the code; no software license is included at this time.
+
+## Secure storage and upgrade checklist
+
+Use Python 3.11 or newer and reinstall `requirements.txt` when upgrading.
+The service retains the existing JSON token-store format and path. It now uses
+a cross-process lock around complete updates, unique temporary files, and on
+POSIX systems private directory (`0700`) and file (`0600`) permissions. Configure
+a dedicated writable data directory; do not use the project root, filesystem
+root, or the public static directory. On Windows, restrict the data directory's
+ACL to the service account. Restrict backup access separately.
+
+Deploy the latest code and restart the OAuth service and companion bot. Confirm
+that `/check` returns HTTP 401 without `X-API-Key`; keep the API secret private
+and use HTTPS. Old deployments that exposed `/check` without authentication may
+have leaked OAuth grants. Revoke affected Discord app authorizations and have
+users authorize again if that version was publicly reachable; source updates
+do not invalidate previously obtained tokens. Review available request logs.
+
+The login notification disables Discord mentions and limits message size.
+CI checks dependency advisories and scans Git history for secrets in addition
+to the regression tests.
